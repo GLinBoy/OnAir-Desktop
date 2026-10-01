@@ -31,6 +31,9 @@ kotlin {
             dependencies {
                 implementation(compose.desktop.currentOs)
                 implementation("com.dorkbox:SystemTray:4.4")
+                // Native detection (Phase 4): Core Audio / CoreMediaIO on macOS, Windows registry APIs.
+                implementation("net.java.dev.jna:jna:5.17.0")
+                implementation("net.java.dev.jna:jna-platform:5.17.0")
             }
         }
     }
