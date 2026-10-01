@@ -29,6 +29,7 @@ kotlin {
         val desktopMain by getting {
             dependencies {
                 implementation(compose.desktop.currentOs)
+                implementation("com.dorkbox:SystemTray:4.4")
             }
         }
     }
