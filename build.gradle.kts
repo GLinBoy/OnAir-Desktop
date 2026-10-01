@@ -4,6 +4,7 @@ plugins {
     kotlin("multiplatform") version "2.4.20"
     id("org.jetbrains.compose") version "1.12.1"
     id("org.jetbrains.kotlin.plugin.compose") version "2.4.20"
+    id("org.jetbrains.kotlin.plugin.serialization") version "2.4.20"
 }
 
 group = "com.glinboy.onair"
@@ -25,6 +26,8 @@ kotlin {
                 implementation("org.jetbrains.compose.ui:ui:$composeVersion")
                 implementation("org.jetbrains.compose.material3:material3:$composeMaterial3Version")
                 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+                // Phase 5: local settings persistence as JSON in the OS config directory.
+                implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
             }
         }
         val desktopMain by getting {
@@ -34,6 +37,11 @@ kotlin {
                 // Native detection (Phase 4): Core Audio / CoreMediaIO on macOS, Windows registry APIs.
                 implementation("net.java.dev.jna:jna:5.17.0")
                 implementation("net.java.dev.jna:jna-platform:5.17.0")
+            }
+        }
+        val desktopTest by getting {
+            dependencies {
+                implementation(kotlin("test"))
             }
         }
     }

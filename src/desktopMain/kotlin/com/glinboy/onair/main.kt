@@ -22,67 +22,109 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.withContext
 import java.awt.EventQueue
 
-fun main() = application {
-    var settingsVisible by remember { mutableStateOf(false) }
-    val mediaMonitor = remember { createMediaMonitor() }
-    val isMicInUse by mediaMonitor.isMicInUse.collectAsState()
-    val isCamInUse by mediaMonitor.isCamInUse.collectAsState()
-    val anyMediaInUse = isMicInUse || isCamInUse
-    var tray by remember { mutableStateOf<SystemTray?>(null) }
+fun main() {
+    // Load persisted settings before the composition starts, then reuse the same store/manager
+    // throughout the app lifetime. Loading is a tiny local read; a failure already falls back to
+    // defaults inside the repository.
+    val settingsRepository = createSettingsRepository()
+    val autostartManager = createAutostartManager()
+    val initialSettings = settingsRepository.load()
 
-    val settingsWindowState = rememberWindowState(
-        size = DpSize(460.dp, 420.dp),
-        position = WindowPosition(Alignment.Center),
-    )
+    application {
+        var settings by remember { mutableStateOf(initialSettings) }
+        var settingsVisible by remember { mutableStateOf(false) }
+        val mediaMonitor = remember { createMediaMonitor() }
+        val isMicInUse by mediaMonitor.isMicInUse.collectAsState()
+        val isCamInUse by mediaMonitor.isCamInUse.collectAsState()
+        val anyMediaInUse = isMicInUse || isCamInUse
+        var tray by remember { mutableStateOf<SystemTray?>(null) }
 
-    LaunchedEffect(Unit) {
-        val systemTray = withContext(Dispatchers.IO) { SystemTray.get("OnAir") }
-        if (systemTray == null) {
-            settingsVisible = true
-        } else {
-            systemTray.setTooltip("OnAir")
-            systemTray.menu.apply {
-                add(MenuItem("Open Settings") { EventQueue.invokeLater { settingsVisible = true } })
-                add(Separator())
-                add(MenuItem("Quit") { EventQueue.invokeLater { exitApplication() } })
+        val settingsWindowState = rememberWindowState(
+            size = DpSize(460.dp, 480.dp),
+            position = WindowPosition(Alignment.Center),
+        )
+
+        /**
+         * Persists the new settings, applies the polling interval, and (only when the start-on-login
+         * preference actually changed) creates/removes the OS autostart entry. If the OS refuses the
+         * autostart change we revert just that field so the UI and the saved file stay truthful.
+         */
+        fun applySettings(updated: AppSettings) {
+            var effective = updated
+            if (updated.startOnLogin != settings.startOnLogin) {
+                val applied = autostartManager.setEnabled(updated.startOnLogin)
+                if (!applied) {
+                    AUTOSTART_LOGGER.warning(
+                        "The OS refused to ${if (updated.startOnLogin) "enable" else "disable"} " +
+                            "start-on-login; reverting the toggle.",
+                    )
+                    effective = updated.copy(startOnLogin = settings.startOnLogin)
+                }
             }
-            tray = systemTray
+            settings = effective
+            settingsRepository.save(effective)
+            (mediaMonitor as? ConfigurableMediaMonitor)?.setPollingInterval(effective.pollingIntervalMs)
         }
-    }
 
-    DisposableEffect(Unit) {
-        onDispose { tray?.shutdown() }
-    }
+        LaunchedEffect(Unit) {
+            val systemTray = withContext(Dispatchers.IO) { SystemTray.get("OnAir") }
+            if (systemTray == null) {
+                settingsVisible = true
+            } else {
+                systemTray.setTooltip("OnAir")
+                systemTray.menu.apply {
+                    add(MenuItem("Open Settings") { EventQueue.invokeLater { settingsVisible = true } })
+                    add(Separator())
+                    add(MenuItem("Quit") { EventQueue.invokeLater { exitApplication() } })
+                }
+                tray = systemTray
+            }
+        }
 
-    // Start the monitor for the lifetime of the app and cancel its background work cleanly
-    // when the composition is disposed on exit, so no coroutine/thread is leaked.
-    DisposableEffect(mediaMonitor) {
-        mediaMonitor.startMonitoring()
-        onDispose { mediaMonitor.stopMonitoring() }
-    }
+        // Keep the OS autostart entry in sync with the saved preference: if it was removed manually
+        // (or never created), recreate it; if the preference is off, make sure no entry lingers.
+        LaunchedEffect(Unit) {
+            withContext(Dispatchers.IO) {
+                if (autostartManager.isEnabled() != settings.startOnLogin) {
+                    autostartManager.setEnabled(settings.startOnLogin)
+                }
+            }
+        }
 
-    // The tray lives outside Compose, so keep the application's composition active until
-    // exitApplication() cancels it; otherwise `application` ends on launch (no window/tray).
-    LaunchedEffect(Unit) {
-        awaitCancellation()
-    }
+        DisposableEffect(Unit) {
+            onDispose { tray?.shutdown() }
+        }
 
-    LaunchedEffect(anyMediaInUse, tray) {
-        tray?.setImage(trayImage(anyMediaInUse))
-    }
+        // Start the monitor for the lifetime of the app and cancel its background work cleanly
+        // when the composition is disposed on exit, so no coroutine/thread is leaked.
+        DisposableEffect(mediaMonitor) {
+            (mediaMonitor as? ConfigurableMediaMonitor)?.setPollingInterval(settings.pollingIntervalMs)
+            mediaMonitor.startMonitoring()
+            onDispose { mediaMonitor.stopMonitoring() }
+        }
 
-    if (settingsVisible) {
-        Window(
-            onCloseRequest = { if (tray == null) exitApplication() else settingsVisible = false },
-            state = settingsWindowState,
-            title = "OnAir — Settings",
-        ) {
-            SettingsScreen(
-                mediaMonitor = mediaMonitor,
-                onPollingIntervalChange = { intervalMs ->
-                    (mediaMonitor as? ConfigurableMediaMonitor)?.setPollingInterval(intervalMs)
-                },
-            )
+        // The tray lives outside Compose, so keep the application's composition active until
+        // exitApplication() cancels it; otherwise `application` ends on launch (no window/tray).
+        LaunchedEffect(Unit) {
+            awaitCancellation()
+        }
+
+        LaunchedEffect(anyMediaInUse, tray) {
+            tray?.setImage(trayImage(anyMediaInUse))
+        }
+
+        if (settingsVisible) {
+            Window(
+                onCloseRequest = { if (tray == null) exitApplication() else settingsVisible = false },
+                state = settingsWindowState,
+                title = "OnAir — Settings",
+            ) {
+                SettingsScreen(
+                    mediaMonitor = mediaMonitor,
+                    settings = settings,
+                    onSettingsChange = { applySettings(it) },
+                )
+            }
         }
     }
 }
