@@ -32,20 +32,20 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun SettingsScreen(
     mediaMonitor: MediaMonitor,
-    modifier: Modifier = Modifier,
+    settings: AppSettings,
     /**
-     * Emits the parsed polling interval whenever the field changes. Defaults to a no-op so the
-     * screen stays usable anywhere a [MediaMonitor] is all that is available; the desktop entry
-     * point forwards this to [ConfigurableMediaMonitor.setPollingInterval].
+     * Invoked with the full, updated settings whenever any control changes. The desktop entry point
+     * persists them, applies the polling interval to the monitor, and drives the OS autostart entry.
      */
-    onPollingIntervalChange: (Long) -> Unit = {},
+    onSettingsChange: (AppSettings) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val isMicInUse by mediaMonitor.isMicInUse.collectAsState()
     val isCamInUse by mediaMonitor.isCamInUse.collectAsState()
 
-    var monitorMic by remember { mutableStateOf(true) }
-    var monitorCam by remember { mutableStateOf(true) }
-    var pollingInterval by remember { mutableStateOf(ConfigurableMediaMonitor.DEFAULT_POLLING_INTERVAL_MS.toString()) }
+    // Local text state so partial input (e.g. an empty field mid-edit) is not forced back to a
+    // number on every keystroke; the parsed value is only pushed up once it is valid.
+    var pollingIntervalText by remember { mutableStateOf(settings.pollingIntervalMs.toString()) }
 
     Column(
         modifier = modifier
@@ -65,23 +65,37 @@ fun SettingsScreen(
 
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Switch(checked = monitorMic, onCheckedChange = { monitorMic = it })
+                Switch(
+                    checked = settings.monitorMic,
+                    onCheckedChange = { onSettingsChange(settings.copy(monitorMic = it)) },
+                )
                 Spacer(Modifier.width(12.dp))
                 Text("Monitor Mic")
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Switch(checked = monitorCam, onCheckedChange = { monitorCam = it })
+                Switch(
+                    checked = settings.monitorCam,
+                    onCheckedChange = { onSettingsChange(settings.copy(monitorCam = it)) },
+                )
                 Spacer(Modifier.width(12.dp))
                 Text("Monitor Cam")
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Switch(
+                    checked = settings.startOnLogin,
+                    onCheckedChange = { onSettingsChange(settings.copy(startOnLogin = it)) },
+                )
+                Spacer(Modifier.width(12.dp))
+                Text("Start On Login")
             }
         }
 
         OutlinedTextField(
-            value = pollingInterval,
+            value = pollingIntervalText,
             onValueChange = { value ->
                 val digits = value.filter { it.isDigit() }
-                pollingInterval = digits
-                digits.toLongOrNull()?.let(onPollingIntervalChange)
+                pollingIntervalText = digits
+                digits.toLongOrNull()?.let { onSettingsChange(settings.copy(pollingIntervalMs = it)) }
             },
             label = { Text("Polling interval (ms)") },
             singleLine = true,
@@ -90,8 +104,9 @@ fun SettingsScreen(
         )
 
         Text(
-            text = "Mic/Cam LEDs are driven live by the native MediaMonitor. " +
-                "The polling interval controls the fallback cadence when the OS offers no events.",
+            text = "Mic/Cam LEDs are driven live by the native MediaMonitor. The polling interval " +
+                "controls the fallback cadence when the OS offers no events. All settings are saved " +
+                "locally and restored on the next launch.",
             style = MaterialTheme.typography.bodySmall,
         )
     }
