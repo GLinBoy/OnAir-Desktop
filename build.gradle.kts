@@ -24,6 +24,7 @@ kotlin {
                 implementation("org.jetbrains.compose.foundation:foundation:$composeVersion")
                 implementation("org.jetbrains.compose.ui:ui:$composeVersion")
                 implementation("org.jetbrains.compose.material3:material3:$composeMaterial3Version")
+                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
             }
         }
         val desktopMain by getting {

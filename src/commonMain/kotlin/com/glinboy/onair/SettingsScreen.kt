@@ -18,6 +18,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,7 +30,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun SettingsScreen(modifier: Modifier = Modifier) {
+fun SettingsScreen(mediaMonitor: MediaMonitor, modifier: Modifier = Modifier) {
+    val isMicInUse by mediaMonitor.isMicInUse.collectAsState()
+    val isCamInUse by mediaMonitor.isCamInUse.collectAsState()
+
     var monitorMic by remember { mutableStateOf(true) }
     var monitorCam by remember { mutableStateOf(true) }
     var pollingInterval by remember { mutableStateOf("1000") }
@@ -46,8 +50,8 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
         )
 
         Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
-            StatusLed(label = "Mic", active = true)
-            StatusLed(label = "Cam", active = false)
+            StatusLed(label = "Mic", active = isMicInUse)
+            StatusLed(label = "Cam", active = isCamInUse)
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -73,7 +77,7 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
         )
 
         Text(
-            text = "Placeholder values — live monitoring is added in a later phase.",
+            text = "Mic/Cam LEDs are driven live by the shared MediaMonitor (fake data for now).",
             style = MaterialTheme.typography.bodySmall,
         )
     }

@@ -2,6 +2,7 @@ package com.glinboy.onair
 
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -23,7 +24,10 @@ import java.awt.EventQueue
 
 fun main() = application {
     var settingsVisible by remember { mutableStateOf(false) }
-    val mediaInUse by remember { mutableStateOf(true) }
+    val mediaMonitor = remember { createMediaMonitor() }
+    val isMicInUse by mediaMonitor.isMicInUse.collectAsState()
+    val isCamInUse by mediaMonitor.isCamInUse.collectAsState()
+    val anyMediaInUse = isMicInUse || isCamInUse
     var tray by remember { mutableStateOf<SystemTray?>(null) }
 
     val settingsWindowState = rememberWindowState(
@@ -37,7 +41,6 @@ fun main() = application {
             settingsVisible = true
         } else {
             systemTray.setTooltip("OnAir")
-            systemTray.setImage(trayImage(mediaInUse))
             systemTray.menu.apply {
                 add(MenuItem("Open Settings") { EventQueue.invokeLater { settingsVisible = true } })
                 add(Separator())
@@ -51,14 +54,21 @@ fun main() = application {
         onDispose { tray?.shutdown() }
     }
 
+    // Start the monitor for the lifetime of the app and cancel its background work cleanly
+    // when the composition is disposed on exit, so no coroutine/thread is leaked.
+    DisposableEffect(mediaMonitor) {
+        mediaMonitor.startMonitoring()
+        onDispose { mediaMonitor.stopMonitoring() }
+    }
+
     // The tray lives outside Compose, so keep the application's composition active until
     // exitApplication() cancels it; otherwise `application` ends on launch (no window/tray).
     LaunchedEffect(Unit) {
         awaitCancellation()
     }
 
-    LaunchedEffect(mediaInUse, tray) {
-        tray?.setImage(trayImage(mediaInUse))
+    LaunchedEffect(anyMediaInUse, tray) {
+        tray?.setImage(trayImage(anyMediaInUse))
     }
 
     if (settingsVisible) {
@@ -67,7 +77,7 @@ fun main() = application {
             state = settingsWindowState,
             title = "OnAir — Settings",
         ) {
-            SettingsScreen()
+            SettingsScreen(mediaMonitor = mediaMonitor)
         }
     }
 }
