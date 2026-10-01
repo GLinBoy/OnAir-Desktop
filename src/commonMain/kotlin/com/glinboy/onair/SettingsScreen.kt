@@ -30,13 +30,22 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun SettingsScreen(mediaMonitor: MediaMonitor, modifier: Modifier = Modifier) {
+fun SettingsScreen(
+    mediaMonitor: MediaMonitor,
+    modifier: Modifier = Modifier,
+    /**
+     * Emits the parsed polling interval whenever the field changes. Defaults to a no-op so the
+     * screen stays usable anywhere a [MediaMonitor] is all that is available; the desktop entry
+     * point forwards this to [ConfigurableMediaMonitor.setPollingInterval].
+     */
+    onPollingIntervalChange: (Long) -> Unit = {},
+) {
     val isMicInUse by mediaMonitor.isMicInUse.collectAsState()
     val isCamInUse by mediaMonitor.isCamInUse.collectAsState()
 
     var monitorMic by remember { mutableStateOf(true) }
     var monitorCam by remember { mutableStateOf(true) }
-    var pollingInterval by remember { mutableStateOf("1000") }
+    var pollingInterval by remember { mutableStateOf(ConfigurableMediaMonitor.DEFAULT_POLLING_INTERVAL_MS.toString()) }
 
     Column(
         modifier = modifier
@@ -69,7 +78,11 @@ fun SettingsScreen(mediaMonitor: MediaMonitor, modifier: Modifier = Modifier) {
 
         OutlinedTextField(
             value = pollingInterval,
-            onValueChange = { value -> pollingInterval = value.filter { it.isDigit() } },
+            onValueChange = { value ->
+                val digits = value.filter { it.isDigit() }
+                pollingInterval = digits
+                digits.toLongOrNull()?.let(onPollingIntervalChange)
+            },
             label = { Text("Polling interval (ms)") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -77,7 +90,8 @@ fun SettingsScreen(mediaMonitor: MediaMonitor, modifier: Modifier = Modifier) {
         )
 
         Text(
-            text = "Mic/Cam LEDs are driven live by the shared MediaMonitor (fake data for now).",
+            text = "Mic/Cam LEDs are driven live by the native MediaMonitor. " +
+                "The polling interval controls the fallback cadence when the OS offers no events.",
             style = MaterialTheme.typography.bodySmall,
         )
     }

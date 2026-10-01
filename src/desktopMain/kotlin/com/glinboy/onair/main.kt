@@ -77,7 +77,12 @@ fun main() = application {
             state = settingsWindowState,
             title = "OnAir — Settings",
         ) {
-            SettingsScreen(mediaMonitor = mediaMonitor)
+            SettingsScreen(
+                mediaMonitor = mediaMonitor,
+                onPollingIntervalChange = { intervalMs ->
+                    (mediaMonitor as? ConfigurableMediaMonitor)?.setPollingInterval(intervalMs)
+                },
+            )
         }
     }
 }
