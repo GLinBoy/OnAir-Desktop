@@ -1,0 +1,3 @@
+# OnAir
+
+OnAir is a Kotlin Multiplatform + Compose Multiplatform desktop application for Windows, macOS, and Linux that lives in the system tray and shows in real time whether your microphone and/or webcam are currently in use, acting like a "tally light" so others can see at a glance when you're in a meeting. Built with a single `jvm("desktop")` target and a `commonMain`/`desktopMain` source-set split, it keeps platform-specific detection behind `expect`/`actual` boundaries so a future mobile companion can reuse the shared interfaces. All detection and settings are local-only, with no cloud dependency.
