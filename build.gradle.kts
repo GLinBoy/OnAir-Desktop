@@ -52,12 +52,40 @@ compose.desktop {
         mainClass = "com.glinboy.onair.MainKt"
 
         nativeDistributions {
-            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
+            // Per-OS installer formats. jpackage can only build the formats of the OS it runs on,
+            // so build each OS's installers on that OS (see README.md).
+            targetFormats(
+                TargetFormat.Dmg, // macOS
+                TargetFormat.Msi, // Windows (MSI installer)
+                TargetFormat.Exe, // Windows (EXE installer)
+                TargetFormat.Deb, // Linux (Debian/Ubuntu package)
+                TargetFormat.AppImage, // Linux (portable AppImage)
+            )
             packageName = "OnAir"
-            packageVersion = "1.0.0"
+            packageVersion = "0.1.0"
+            description = "System-tray tally light showing when your microphone or camera is in use"
+            vendor = "GLinBoy"
 
             macOS {
                 bundleID = "com.glinboy.onair"
+                iconFile.set(project.file("packaging/icons/onair.icns"))
+            }
+
+            windows {
+                iconFile.set(project.file("packaging/icons/onair.ico"))
+                menuGroup = "OnAir"
+                shortcut = true
+                dirChooser = true
+                perUserInstall = true
+                // Stable ID so MSI upgrades replace the previous install instead of stacking.
+                upgradeUuid = "fb8165f1-da31-426a-bc16-1aa7c8228ffd"
+            }
+
+            linux {
+                iconFile.set(project.file("packaging/icons/onair.png"))
+                menuGroup = "AudioVideo"
+                appCategory = "AudioVideo"
+                shortcut = true
             }
         }
     }
