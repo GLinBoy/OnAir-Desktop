@@ -47,11 +47,11 @@ Output: `build/compose/binaries/main/dmg/`.
 ```bash
 ./gradlew packageDeb
 ./gradlew createDistributable
-./packaging/linux/make_appimage.sh 1.0.0
+./packaging/linux/make_appimage.sh 0.1.0
 ```
 
 Output: `build/compose/binaries/main/deb/` and
-`build/compose/binaries/main/appimage/OnAir-1.0.0-x86_64.AppImage`.
+`build/compose/binaries/main/appimage/OnAir-0.1.0-x86_64.AppImage`.
 
 The `.deb` task uses jpackage's Debian bundler, which requires the `dpkg-deb` and `fakeroot`
 tools to be installed (both are part of a normal Debian/Ubuntu build environment; on Arch-based
@@ -65,10 +65,10 @@ After installing the `.deb`, launch OnAir from the application menu or `/opt/ona
 ### Universal jar (all OSes, requires Java 21)
 
 ```bash
-./gradlew packageUniversalJar -Pversion=1.0.0
+./gradlew packageUniversalJar -Pversion=0.1.0
 ```
 
-Output: `build/compose/jars/OnAir-1.0.0-universal.jar`. Run it with `java -jar <file>` on
+Output: `build/compose/jars/OnAir-0.1.0-universal.jar`. Run it with `java -jar <file>` on
 Linux x64, Windows x64, or macOS arm64. It bundles the app plus the Skiko native libraries for
 those platforms, so a single file works across them — but the target machine must already have
 a Java 21 runtime installed. Cross-OS behaviour is best-effort.
@@ -92,15 +92,16 @@ for every push/PR to `main`.
 To cut a release:
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+git tag v0.1.0
+git push origin v0.1.0
 ```
 
 The tag becomes the app version (the leading `v` is stripped; a pre-release suffix such as
-`-rc1` is stripped too, since jpackage only accepts numeric versions). The major version must be
-`>= 1` — jpackage's macOS bundler rejects versions that start with `0`, so use e.g. `v1.0.0`,
-not `v0.1.0`. The workflow builds on per-OS runners and auto-publishes a GitHub Release with
-generated notes and these assets:
+`-rc1` is stripped too, since jpackage only accepts numeric versions). Releases use `0.x` semver:
+because jpackage's macOS bundler rejects versions whose first component is `0`, the macOS build
+maps that component to `1` (e.g. app `0.1.0` → DMG `1.1.0`); Linux and Windows keep `0.x`. The
+workflow builds on per-OS runners and auto-publishes a GitHub Release with generated notes and
+these assets:
 
 | Asset                                        | Platform        |
 | -------------------------------------------- | --------------- |
