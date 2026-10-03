@@ -62,6 +62,17 @@ jobs:
         shell: bash
         run: bash packaging/linux/make_appimage.sh "$ONAIR_VERSION"
 
+      - name: Show packaging logs on failure
+        if: failure()
+        shell: bash
+        run: |
+          echo "::group::jpackage logs"
+          find build/compose/logs -type f -name '*.txt' -print -exec cat {} \; 2>/dev/null || true
+          echo "::endgroup::"
+          echo "::group::jpackage args"
+          find build/compose/tmp -name '*.args.txt' -print -exec cat {} \; 2>/dev/null || true
+          echo "::endgroup::"
+
       - name: Upload ${{ matrix.artifact }} artifacts
         uses: actions/upload-artifact@v4
         with:
