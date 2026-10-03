@@ -42,22 +42,36 @@ The installers are per-user and let the user choose the install directory.
 
 Output: `build/compose/binaries/main/dmg/`.
 
-### Linux (`.deb`, AppImage)
+### Linux (`.deb`, single-file `.AppImage`)
 
 ```bash
 ./gradlew packageDeb
-./gradlew packageAppImage
+./gradlew createDistributable
+./packaging/linux/make_appimage.sh 0.1.0
 ```
 
-Output: `build/compose/binaries/main/deb/` and `build/compose/binaries/main/app/`.
+Output: `build/compose/binaries/main/deb/` and
+`build/compose/binaries/main/appimage/OnAir-0.1.0-x86_64.AppImage`.
 
 The `.deb` task uses jpackage's Debian bundler, which requires the `dpkg-deb` and `fakeroot`
 tools to be installed (both are part of a normal Debian/Ubuntu build environment; on Arch-based
-distros install the `dpkg` package). The Compose `AppImage` target builds jpackage's portable
-application image (a self-contained directory you can run directly); it does not require
-`dpkg-deb`.
+distros install the `dpkg` package). `packaging/linux/make_appimage.sh` wraps the jpackage
+app-image from `createDistributable` into a single-file `.AppImage` using `appimagetool`
+(downloaded and cached under `build/appimage/tools` on first run). The Compose `packageAppImage`
+task also exists; in this Compose version it produces the same portable app-image directory.
 
 After installing the `.deb`, launch OnAir from the application menu or `/opt/onair/bin/OnAir`.
+
+### Universal jar (all OSes, requires Java 21)
+
+```bash
+./gradlew packageUniversalJar -Pversion=0.1.0
+```
+
+Output: `build/compose/jars/OnAir-0.1.0-universal.jar`. Run it with `java -jar <file>` on
+Linux x64, Windows x64, or macOS arm64. It bundles the app plus the Skiko native libraries for
+those platforms, so a single file works across them — but the target machine must already have
+a Java 21 runtime installed. Cross-OS behaviour is best-effort.
 
 ## App icon
 
@@ -68,6 +82,33 @@ wired into the packaging config. To regenerate them from the single design sourc
 python3 -m pip install Pillow
 python3 packaging/icons/generate_icons.py
 ```
+
+## Releases (CI/CD)
+
+`.github/workflows/ci.yml` runs `./gradlew check` on Ubuntu, Windows, and macOS (Apple Silicon)
+for every push/PR to `main`.
+
+`.github/workflows/release.yml` builds and publishes a release whenever a version tag is pushed.
+To cut a release:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The tag becomes the app version (the leading `v` is stripped; a pre-release suffix such as
+`-rc1` is stripped too, since jpackage only accepts numeric versions). The workflow builds on
+per-OS runners and auto-publishes a GitHub Release with generated notes and these assets:
+
+| Asset                                        | Platform        |
+| -------------------------------------------- | --------------- |
+| `OnAir-<version>.msi`, `OnAir-<version>.exe` | Windows x64     |
+| `OnAir-<version>.dmg`                        | macOS arm64     |
+| `onair_<version>_amd64.deb`                  | Linux x64       |
+| `OnAir-<version>-x86_64.AppImage`            | Linux x64       |
+| `OnAir-<version>-universal.jar`              | Any (Java 21)   |
+
+All builds are unsigned (see below).
 
 ## Not yet covered: code signing & notarization
 

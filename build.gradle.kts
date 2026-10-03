@@ -1,3 +1,6 @@
+import org.gradle.api.file.DuplicatesStrategy
+import org.gradle.api.file.FileTree
+import org.gradle.api.provider.Provider
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 
 plugins {
@@ -7,8 +10,19 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization") version "2.4.20"
 }
 
+// CI overrides the version from the pushed git tag via `-Pversion=...` (or the ONAIR_VERSION
+// env var). Local builds default to 0.1.0.
+val rawVersion: String = providers.gradleProperty("version").orNull
+    ?: System.getenv("ONAIR_VERSION")
+    ?: "0.1.0"
+
+// jpackage only accepts numeric versions (major[.minor[.patch]]), so strip pre-release/build
+// suffixes (e.g. 1.2.3-rc1 -> 1.2.3) before handing the value to the native distributions.
+val packageVersionNumber: String =
+    Regex("""\d+(\.\d+){1,2}""").find(rawVersion)?.value ?: "0.1.0"
+
 group = "com.glinboy.onair"
-version = "0.1.0"
+version = rawVersion
 
 val composeVersion = "1.12.1"
 val composeMaterial3Version = "1.12.0-alpha03"
@@ -47,6 +61,16 @@ kotlin {
     }
 }
 
+// Extra Skiko native runtimes so a single jar can run on Linux x64, Windows x64 and macOS
+// arm64. The normal desktop runtime classpath only contains the current OS's native library.
+val universalJarNatives: Configuration by configurations.creating
+
+dependencies {
+    universalJarNatives("org.jetbrains.compose.desktop:desktop-jvm-linux-x64:$composeVersion")
+    universalJarNatives("org.jetbrains.compose.desktop:desktop-jvm-windows-x64:$composeVersion")
+    universalJarNatives("org.jetbrains.compose.desktop:desktop-jvm-macos-arm64:$composeVersion")
+}
+
 compose.desktop {
     application {
         mainClass = "com.glinboy.onair.MainKt"
@@ -62,7 +86,7 @@ compose.desktop {
                 TargetFormat.AppImage, // Linux (portable AppImage)
             )
             packageName = "OnAir"
-            packageVersion = "0.1.0"
+            packageVersion = packageVersionNumber
             description = "System-tray tally light showing when your microphone or camera is in use"
             vendor = "GLinBoy"
 
@@ -89,4 +113,37 @@ compose.desktop {
             }
         }
     }
+}
+
+// A single "runs on everything" jar for users who already have a Java 21 runtime. Skiko is the
+// only OS-specific dependency, so its native runtime for Linux x64, Windows x64 and macOS arm64
+// is bundled on top of the regular desktop runtime classpath.
+val packageUniversalJar by tasks.registering(Jar::class) {
+    group = "compose desktop"
+    description = "Builds one cross-platform executable jar (requires a Java 21 runtime)."
+    archiveBaseName.set("OnAir")
+    archiveClassifier.set("universal")
+    archiveVersion.set(rawVersion)
+    destinationDirectory.set(layout.buildDirectory.dir("compose/jars"))
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+    manifest {
+        attributes["Main-Class"] = "com.glinboy.onair.MainKt"
+    }
+
+    from(sourceSets["desktopMain"].output)
+
+    val runtimeContents: Provider<List<FileTree>> =
+        configurations.named("desktopRuntimeClasspath").map { runtime ->
+            runtime.map { if (it.isDirectory) project.fileTree(it) else project.zipTree(it) }
+        }
+    val nativeContents: Provider<List<FileTree>> =
+        universalJarNatives.elements.map { locations ->
+            locations.map { project.zipTree(it.asFile) }
+        }
+
+    from(runtimeContents)
+    from(nativeContents)
+
+    exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA", "module-info.class")
 }
