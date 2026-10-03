@@ -19,7 +19,7 @@ On launch OnAir shows only a tray icon. Use the tray menu to open the settings w
 
 Installers are produced by Compose Desktop's `jpackage`-based tasks. `jpackage` **cannot
 cross-compile**: each OS's installers must be built on that OS (a `.dmg` can only be built on
-macOS, the `.msi`/`.exe` only on Windows, and the `.deb`/AppImage only on Linux).
+macOS, the `.msi`/`.exe` only on Windows, and the `.deb`/`.rpm`/AppImage only on Linux).
 
 Build a single format, or all formats compatible with the host with
 `./gradlew packageDistributionForCurrentOS`.
@@ -42,25 +42,27 @@ The installers are per-user and let the user choose the install directory.
 
 Output: `build/compose/binaries/main/dmg/`.
 
-### Linux (`.deb`, single-file `.AppImage`)
+### Linux (`.deb`, `.rpm`, single-file `.AppImage`)
 
 ```bash
-./gradlew packageDeb
+./gradlew packageDeb packageRpm
 ./gradlew createDistributable
 ./packaging/linux/make_appimage.sh 0.1.0
 ```
 
-Output: `build/compose/binaries/main/deb/` and
+Output: `build/compose/binaries/main/deb/`, `build/compose/binaries/main/rpm/`, and
 `build/compose/binaries/main/appimage/OnAir-0.1.0-x86_64.AppImage`.
 
 The `.deb` task uses jpackage's Debian bundler, which requires the `dpkg-deb` and `fakeroot`
 tools to be installed (both are part of a normal Debian/Ubuntu build environment; on Arch-based
-distros install the `dpkg` package). `packaging/linux/make_appimage.sh` wraps the jpackage
-app-image from `createDistributable` into a single-file `.AppImage` using `appimagetool`
+distros install the `dpkg` package). The `.rpm` task uses jpackage's RPM bundler, which requires
+`rpmbuild` (from the `rpm`/`rpm-build` package). `packaging/linux/make_appimage.sh` wraps the
+jpackage app-image from `createDistributable` into a single-file `.AppImage` using `appimagetool`
 (downloaded and cached under `build/appimage/tools` on first run). The Compose `packageAppImage`
 task also exists; in this Compose version it produces the same portable app-image directory.
 
-After installing the `.deb`, launch OnAir from the application menu or `/opt/onair/bin/OnAir`.
+After installing the `.deb`/`.rpm`, launch OnAir from the application menu or
+`/opt/onair/bin/OnAir`.
 
 ### Universal jar (all OSes, requires Java 21)
 
@@ -107,8 +109,9 @@ these assets:
 | -------------------------------------------- | --------------- |
 | `OnAir-<version>.msi`, `OnAir-<version>.exe` | Windows x64     |
 | `OnAir-<version>.dmg`                        | macOS arm64     |
-| `onair_<version>_amd64.deb`                  | Linux x64       |
-| `OnAir-<version>-x86_64.AppImage`            | Linux x64       |
+| `onair_<version>_amd64.deb`                  | Linux (Debian)  |
+| `onair-<version>-1.x86_64.rpm`               | Linux (RPM)     |
+| `OnAir-<version>-x86_64.AppImage`            | Linux (any)     |
 | `OnAir-<version>-universal.jar`              | Any (Java 21)   |
 
 All builds are unsigned (see below).

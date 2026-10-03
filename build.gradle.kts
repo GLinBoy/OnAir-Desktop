@@ -93,6 +93,7 @@ compose.desktop {
                 TargetFormat.Msi, // Windows (MSI installer)
                 TargetFormat.Exe, // Windows (EXE installer)
                 TargetFormat.Deb, // Linux (Debian/Ubuntu package)
+                TargetFormat.Rpm, // Linux (Fedora/RHEL/openSUSE package)
                 TargetFormat.AppImage, // Linux (portable AppImage)
             )
             packageName = "OnAir"
