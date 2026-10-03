@@ -11,16 +11,25 @@ plugins {
 }
 
 // CI overrides the version from the pushed git tag via `-Pversion=...` (or the ONAIR_VERSION
-// env var). Local builds default to 1.0.0. The major must be >= 1: jpackage's macOS bundler
-// rejects versions whose first number is zero.
+// env var). Local builds default to 0.1.0.
 val rawVersion: String = providers.gradleProperty("version").orNull
     ?: System.getenv("ONAIR_VERSION")
-    ?: "1.0.0"
+    ?: "0.1.0"
 
 // jpackage only accepts numeric versions (major[.minor[.patch]]), so strip pre-release/build
 // suffixes (e.g. 1.2.3-rc1 -> 1.2.3) before handing the value to the native distributions.
+val numericVersion: String =
+    Regex("""\d+(\.\d+){1,2}""").find(rawVersion)?.value ?: "0.1.0"
+
+// jpackage's macOS bundler rejects versions whose first component is 0, and Compose exposes no
+// per-OS app-version override. On macOS only, map a 0.x.y release to a 1.x.y package version so
+// the DMG can be built; the app/jar version stays 0.x.y (the DMG reports the mapped version).
 val packageVersionNumber: String =
-    Regex("""\d+(\.\d+){1,2}""").find(rawVersion)?.value ?: "1.0.0"
+    if (System.getProperty("os.name").orEmpty().lowercase().contains("mac")) {
+        numericVersion.replaceFirst(Regex("""^0(?=\.|$)"""), "1")
+    } else {
+        numericVersion
+    }
 
 group = "com.glinboy.onair"
 version = rawVersion
