@@ -22,7 +22,7 @@ jobs:
         include:
           - os: ubuntu-latest
             artifact: linux
-            tasks: packageDeb
+            tasks: packageDeb packageRpm
           - os: windows-latest
             artifact: windows
             tasks: packageMsi packageExe
@@ -52,6 +52,11 @@ jobs:
             exit 1
           fi
           echo "ONAIR_VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Install RPM tooling
+        if: matrix.artifact == 'linux'
+        shell: bash
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends rpm
 
       - name: Build installers
         shell: bash
@@ -83,6 +88,7 @@ jobs:
             build/compose/binaries/main/exe/*.exe
             build/compose/binaries/main/dmg/*.dmg
             build/compose/binaries/main/deb/*.deb
+            build/compose/binaries/main/rpm/*.rpm
             build/compose/binaries/main/appimage/*.AppImage
 
   universal-jar:
