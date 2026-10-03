@@ -1,0 +1,137 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build (${{ matrix.artifact }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: linux
+            tasks: packageDeb
+          - os: windows-latest
+            artifact: windows
+            tasks: packageMsi packageExe
+          - os: macos-14
+            artifact: macos
+            tasks: packageDmg
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Resolve version from tag
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${VERSION%%-*}"
+          if ! [[ "$VERSION" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]]; then
+            echo "::error::Tag '$GITHUB_REF_NAME' does not map to a numeric version ('$VERSION')."
+            exit 1
+          fi
+          echo "ONAIR_VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Build installers
+        shell: bash
+        run: ./gradlew ${{ matrix.tasks }} -Pversion="$ONAIR_VERSION" --stacktrace
+
+      - name: Build AppImage
+        if: matrix.artifact == 'linux'
+        shell: bash
+        run: bash packaging/linux/make_appimage.sh "$ONAIR_VERSION"
+
+      - name: Upload ${{ matrix.artifact }} artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          if-no-files-found: error
+          path: |
+            build/compose/binaries/main/msi/*.msi
+            build/compose/binaries/main/exe/*.exe
+            build/compose/binaries/main/dmg/*.dmg
+            build/compose/binaries/main/deb/*.deb
+            build/compose/binaries/main/appimage/*.AppImage
+
+  universal-jar:
+    name: Build universal jar
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Resolve version from tag
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${VERSION%%-*}"
+          if ! [[ "$VERSION" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]]; then
+            echo "::error::Tag '$GITHUB_REF_NAME' does not map to a numeric version ('$VERSION')."
+            exit 1
+          fi
+          echo "ONAIR_VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Build universal jar
+        shell: bash
+        run: ./gradlew packageUniversalJar -Pversion="$ONAIR_VERSION" --stacktrace
+
+      - name: Upload universal jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: universal-jar
+          if-no-files-found: error
+          path: build/compose/jars/*.jar
+
+  publish:
+    name: Publish release
+    needs: [build, universal-jar]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: List release assets
+        shell: bash
+        run: ls -lR dist
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          files: dist/**
