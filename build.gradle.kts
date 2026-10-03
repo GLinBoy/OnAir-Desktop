@@ -11,15 +11,16 @@ plugins {
 }
 
 // CI overrides the version from the pushed git tag via `-Pversion=...` (or the ONAIR_VERSION
-// env var). Local builds default to 0.1.0.
+// env var). Local builds default to 1.0.0. The major must be >= 1: jpackage's macOS bundler
+// rejects versions whose first number is zero.
 val rawVersion: String = providers.gradleProperty("version").orNull
     ?: System.getenv("ONAIR_VERSION")
-    ?: "0.1.0"
+    ?: "1.0.0"
 
 // jpackage only accepts numeric versions (major[.minor[.patch]]), so strip pre-release/build
 // suffixes (e.g. 1.2.3-rc1 -> 1.2.3) before handing the value to the native distributions.
 val packageVersionNumber: String =
-    Regex("""\d+(\.\d+){1,2}""").find(rawVersion)?.value ?: "0.1.0"
+    Regex("""\d+(\.\d+){1,2}""").find(rawVersion)?.value ?: "1.0.0"
 
 group = "com.glinboy.onair"
 version = rawVersion
